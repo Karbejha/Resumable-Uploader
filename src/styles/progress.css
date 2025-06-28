@@ -1,0 +1,24 @@
+/* Progress bar styles */
+.progress-bar {
+  height: 0.5rem;
+  border-radius: 9999px;
+  transition: all 0.3s ease;
+  transform-origin: left;
+}
+
+.progress-container {
+  width: 100%;
+  background-color: #e5e7eb;
+  border-radius: 9999px;
+  height: 0.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-0 { width: 0%; }
+.progress-1 { width: 1%; }
+.progress-2 { width: 2%; }
+.progress-3 { width: 3%; }
+.progress-4 { width: 4%; }
+.progress-5 { width: 5%; }
+/* Generate more progress classes as needed */

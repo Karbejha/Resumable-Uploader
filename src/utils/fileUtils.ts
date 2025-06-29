@@ -177,14 +177,6 @@ export function formatSpeed(bytesPerSecond: number): string {
  */
 export function validateFile(file: File): { isValid: boolean; error?: string } {
   const maxSize = 200 * 1024 * 1024 * 1024; // 200GB
-  const minSize = 5 * 1024 * 1024; // 5MB
-
-  if (file.size < minSize) {
-    return {
-      isValid: false,
-      error: `File size must be at least ${formatFileSize(minSize)}`,
-    };
-  }
 
   if (file.size > maxSize) {
     return {

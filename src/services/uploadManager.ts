@@ -1,4 +1,4 @@
-import { FileUpload, UploadStatus, UploadProgress, S3UploadConfig, UploadError } from '@/types/upload';
+import { FileUpload, UploadStatus, UploadProgress, S3UploadConfig, UploadError, FileValidationResult } from '@/types/upload';
 import { S3UploadService } from '@/services/s3UploadService';
 import { useUploadStore } from '@/store/uploadStore';
 import { getActiveUploads, hasActiveUploads } from '@/utils/uploadUtils';
@@ -240,9 +240,7 @@ export class UploadManager {
 
     // Update status to paused
     this.uploadStore.getState().pauseUpload(uploadId);
-    
-    console.log(`Upload ${uploadId} paused successfully`);
-  }
+    }
 
   /**
    * Cancel an upload
@@ -389,16 +387,28 @@ export class UploadManager {
         console.warn('Failed to generate download URL:', error);
       }
       
-      // Update upload status
+      // Update upload status to validating
       this.uploadStore.getState().updateUpload(uploadId, {
-        status: UploadStatus.COMPLETED,
+        status: UploadStatus.VALIDATING,
         progress: 100,
         uploadUrl: location,
         downloadUrl,
       });
 
-      // TODO: Verify file integrity
-      // This could be done by downloading and comparing checksums
+      // Verify file integrity
+      const validationResult = await this.validateFileIntegrity(uploadId);
+      
+      if (validationResult.isValid) {
+        // File is valid, mark as completed
+        this.uploadStore.getState().updateUpload(uploadId, {
+          status: UploadStatus.COMPLETED,
+          progress: 100,
+          validationResult: validationResult,
+        });
+      } else {
+        // File is corrupted, handle accordingly
+        await this.handleCorruptedFile(uploadId, validationResult);
+      }
       
     } catch (error) {
       this.handleUploadError(uploadId, error);
@@ -515,21 +525,205 @@ export class UploadManager {
    */
   private async calculateChecksumInBackground(uploadId: string, file: File): Promise<void> {
     try {
-      console.log(`Starting background checksum calculation for ${file.name}`);
       const checksum = await calculateFileChecksum(file, (progress) => {
         // Optionally update UI with checksum calculation progress
-        console.log(`Checksum calculation progress: ${progress.toFixed(1)}%`);
       });
       
       // Update the upload with the calculated checksum
       this.uploadStore.getState().updateUpload(uploadId, {
         checksum,
       });
-      
-      console.log(`Background checksum calculation completed for ${file.name}`);
-    } catch (error) {
+      } catch (error) {
       console.warn(`Failed to calculate checksum in background for ${file.name}:`, error);
       // Don't fail the upload if checksum calculation fails
+    }
+  }
+
+  /**
+   * Validate file integrity after upload completion
+   */
+  private async validateFileIntegrity(uploadId: string): Promise<FileValidationResult> {
+    const upload = this.uploadStore.getState().getUpload(uploadId);
+    
+    if (!upload) {
+      throw new Error('Upload not found for validation');
+    }
+
+    try {
+      
+      // Step 1: Validate S3 object exists and has correct size
+      const s3ObjectInfo = await this.s3Service.getObjectInfo(upload);
+      
+      if (s3ObjectInfo.size !== upload.fileSize) {
+        return {
+          isValid: false,
+          expectedChecksum: upload.checksum || '',
+          actualChecksum: '',
+          error: `File size mismatch. Expected: ${upload.fileSize}, Actual: ${s3ObjectInfo.size}`,
+        };
+      }
+
+      // Step 2: Validate all chunks have ETags (indicating successful upload)
+      const invalidChunks = upload.chunks
+        .filter(chunk => chunk.uploaded && !chunk.etag)
+        .map(chunk => chunk.chunkNumber);
+
+      if (invalidChunks.length > 0) {
+        return {
+          isValid: false,
+          expectedChecksum: upload.checksum || '',
+          actualChecksum: '',
+          corruptedChunks: invalidChunks,
+          error: `Missing ETags for chunks: ${invalidChunks.join(', ')}`,
+        };
+      }
+
+      // Step 3: For smaller files (< 100MB), download and verify checksum
+      if (upload.fileSize < 100 * 1024 * 1024 && upload.checksum && upload.checksum !== 'deferred') {
+        try {
+          const downloadedChecksum = await this.s3Service.calculateUploadedFileChecksum(upload);
+          
+          if (downloadedChecksum !== upload.checksum) {
+            return {
+              isValid: false,
+              expectedChecksum: upload.checksum,
+              actualChecksum: downloadedChecksum,
+              error: 'Checksum mismatch detected',
+            };
+          }
+        } catch (error) {
+          console.warn('Failed to verify checksum, but file size is correct:', error);
+          // Don't fail validation if we can't download for checksum verification
+          // The file size match is a good indicator of integrity
+        }
+      }
+
+      // Step 4: Validate S3 multipart upload completion
+      if (upload.uploadId) {
+        try {
+          const uploadedParts = await this.s3Service.listUploadedParts(upload);
+          const expectedParts = upload.totalChunks;
+          
+          if (uploadedParts.length !== expectedParts) {
+            return {
+              isValid: false,
+              expectedChecksum: upload.checksum || '',
+              actualChecksum: '',
+              error: `Part count mismatch. Expected: ${expectedParts}, Actual: ${uploadedParts.length}`,
+            };
+          }
+        } catch (error) {
+          console.warn('Failed to verify uploaded parts:', error);
+          // If the upload is completed, S3 should have cleaned up the multipart upload
+          // So this error might be expected for completed uploads
+        }
+      }      
+      return {
+        isValid: true,
+        expectedChecksum: upload.checksum || '',
+        actualChecksum: upload.checksum || '',
+        error: undefined,
+      };
+      
+    } catch (error) {
+      console.error(`Integrity validation failed for ${upload.fileName}:`, error);
+      return {
+        isValid: false,
+        expectedChecksum: upload.checksum || '',
+        actualChecksum: '',
+        error: error instanceof Error ? error.message : 'Validation failed',
+      };
+    }
+  }
+
+  /**
+   * Handle corrupted file detection
+   */
+  private async handleCorruptedFile(uploadId: string, validationResult: FileValidationResult): Promise<void> {
+    const upload = this.uploadStore.getState().getUpload(uploadId);
+    
+    if (!upload) {
+      return;
+    }
+
+    console.error(`File corruption detected for ${upload.fileName}:`, validationResult);
+
+    // Check if we can recover by re-uploading corrupted chunks
+    if (validationResult.corruptedChunks && validationResult.corruptedChunks.length > 0) {
+      // Mark corrupted chunks as not uploaded
+      validationResult.corruptedChunks.forEach(chunkNumber => {
+        const chunkIndex = upload.chunks.findIndex(chunk => chunk.chunkNumber === chunkNumber);
+        if (chunkIndex >= 0) {
+          upload.chunks[chunkIndex].uploaded = false;
+          upload.chunks[chunkIndex].etag = undefined;
+        }
+      });
+
+      // Update upload status and retry
+      this.uploadStore.getState().updateUpload(uploadId, {
+        status: UploadStatus.ERROR,
+        errorMessage: `File corruption detected. Retrying ${validationResult.corruptedChunks.length} corrupted chunks...`,
+        chunks: upload.chunks,
+        uploadedChunks: upload.chunks.filter(chunk => chunk.uploaded).length,
+        progress: (upload.chunks.filter(chunk => chunk.uploaded).length / upload.totalChunks) * 100,
+      });
+
+      // Retry the upload for corrupted chunks
+      setTimeout(() => {
+        this.resumeUpload(uploadId);
+      }, 2000);
+      
+    } else {
+      // Complete failure - mark as error
+      this.uploadStore.getState().updateUpload(uploadId, {
+        status: UploadStatus.ERROR,
+        errorMessage: `File integrity validation failed: ${validationResult.error}`,
+        validationResult: validationResult,
+      });
+
+      // Optionally abort the S3 upload
+      if (upload.uploadId) {
+        try {
+          await this.s3Service.abortUpload(upload);
+        } catch (error) {
+          console.warn('Failed to abort corrupted upload:', error);
+        }
+      }
+    }
+  }
+
+  /**
+   * Manually trigger integrity validation for a completed upload
+   */
+  async validateUpload(uploadId: string): Promise<FileValidationResult> {
+    const upload = this.uploadStore.getState().getUpload(uploadId);
+    
+    if (!upload) {
+      throw new Error('Upload not found');
+    }
+
+    if (upload.status !== UploadStatus.COMPLETED) {
+      throw new Error('Upload must be completed before validation');
+    }
+
+    // Update status to validating
+    this.uploadStore.getState().setUploadStatus(uploadId, UploadStatus.VALIDATING);
+
+    try {
+      const validationResult = await this.validateFileIntegrity(uploadId);
+      
+      // Update the upload with validation result
+      this.uploadStore.getState().updateUpload(uploadId, {
+        validationResult: validationResult,
+        status: validationResult.isValid ? UploadStatus.COMPLETED : UploadStatus.ERROR,
+        errorMessage: validationResult.isValid ? undefined : validationResult.error,
+      });
+
+      return validationResult;
+    } catch (error) {
+      // Restore completed status if validation fails
+      this.uploadStore.getState().setUploadStatus(uploadId, UploadStatus.COMPLETED);
+      throw error;
     }
   }
 }

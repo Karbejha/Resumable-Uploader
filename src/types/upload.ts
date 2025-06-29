@@ -28,12 +28,14 @@ export interface FileUpload {
   createdAt: Date;
   updatedAt: Date;
   checksum?: string;
+  validationResult?: FileValidationResult;
 }
 
 export enum UploadStatus {
   PENDING = 'pending',
   UPLOADING = 'uploading',
   PAUSED = 'paused',
+  VALIDATING = 'validating',
   COMPLETED = 'completed',
   ERROR = 'error',
   CANCELLED = 'cancelled',
@@ -78,4 +80,5 @@ export interface FileValidationResult {
   expectedChecksum: string;
   actualChecksum: string;
   corruptedChunks?: number[];
+  error?: string;
 }

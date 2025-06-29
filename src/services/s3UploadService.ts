@@ -287,16 +287,12 @@ export class S3UploadService {
    */
   cancelFileUpload(uploadId: string): void {
     const keysToCancel = Array.from(this.activeUploads.keys())
-      .filter(key => key.startsWith(uploadId));
-    
-    console.log(`Cancelling ${keysToCancel.length} active chunk uploads for ${uploadId}`);
-    
+      .filter(key => key.startsWith(uploadId));    
     keysToCancel.forEach(key => {
       const abortController = this.activeUploads.get(key);
       if (abortController && !abortController.signal.aborted) {
         try {
           abortController.abort();
-          console.log(`Cancelled chunk upload: ${key}`);
         } catch (error) {
           console.warn(`Failed to abort chunk upload ${key}:`, error);
         }
@@ -346,6 +342,64 @@ export class S3UploadService {
       console.error('Failed to generate download URL:', error);
       // Fallback to direct S3 URL if presigned URL fails
       return `https://${this.config.bucketName}.s3.${this.config.region}.amazonaws.com/${encodeURIComponent(fileUpload.fileName)}`;
+    }
+  }
+
+  /**
+   * Get S3 object information (size, metadata, etc.)
+   */
+  async getObjectInfo(fileUpload: FileUpload): Promise<{ size: number; metadata?: Record<string, string> }> {
+    try {
+      const command = new GetObjectCommand({
+        Bucket: this.config.bucketName,
+        Key: fileUpload.fileName,
+      });
+
+      const response = await this.s3Client.send(command);
+      
+      return {
+        size: response.ContentLength || 0,
+        metadata: response.Metadata,
+      };
+    } catch (error) {
+      throw this.handleS3Error(error, fileUpload.id);
+    }
+  }
+
+  /**
+   * Download file from S3 and calculate its checksum for validation
+   */
+  async calculateUploadedFileChecksum(fileUpload: FileUpload): Promise<string> {
+    try {
+      const command = new GetObjectCommand({
+        Bucket: this.config.bucketName,
+        Key: fileUpload.fileName,
+      });
+
+      const response = await this.s3Client.send(command);
+      
+      if (!response.Body) {
+        throw new Error('No file content received from S3');
+      }
+
+      // Convert the stream to a buffer
+      const chunks: Uint8Array[] = [];
+      const stream = response.Body as any;
+      
+      for await (const chunk of stream) {
+        chunks.push(chunk);
+      }
+      
+      const buffer = Buffer.concat(chunks);
+      
+      // Calculate checksum using the same method as the original file
+      const crypto = await import('crypto-js');
+      const wordArray = crypto.lib.WordArray.create(buffer);
+      const hash = crypto.SHA256(wordArray);
+      return hash.toString();
+      
+    } catch (error) {
+      throw this.handleS3Error(error, fileUpload.id);
     }
   }
 

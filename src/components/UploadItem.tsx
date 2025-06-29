@@ -16,6 +16,7 @@ interface UploadItemProps {
 export default function UploadItem({ upload, uploadManager, onComplete, onError }: UploadItemProps) {
   const [isPausing, setIsPausing] = useState(false);
   const [isResuming, setIsResuming] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
 
   const handlePause = () => {
     setIsPausing(true);
@@ -41,12 +42,25 @@ export default function UploadItem({ upload, uploadManager, onComplete, onError 
     });
   };
 
+  const handleValidate = async () => {
+    setIsValidating(true);
+    try {
+      await uploadManager.validateUpload(upload.id);
+    } catch (error) {
+      onError?.(error instanceof Error ? error.message : 'Validation failed');
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
   const getStatusColor = () => {
     switch (upload.status) {
       case UploadStatus.UPLOADING:
         return 'text-blue-600';
       case UploadStatus.PAUSED:
         return 'text-yellow-600';
+      case UploadStatus.VALIDATING:
+        return 'text-purple-600';
       case UploadStatus.COMPLETED:
         return 'text-green-600';
       case UploadStatus.ERROR:
@@ -58,7 +72,7 @@ export default function UploadItem({ upload, uploadManager, onComplete, onError 
     }
   };
 
-  const getProgressBarColorName = (): 'blue' | 'green' | 'yellow' | 'red' | 'gray' => {
+  const getProgressBarColorName = (): 'blue' | 'green' | 'yellow' | 'red' | 'gray' | 'purple' => {
     if (isPausing || isResuming) return 'yellow';
     
     switch (upload.status) {
@@ -66,6 +80,8 @@ export default function UploadItem({ upload, uploadManager, onComplete, onError 
         return 'blue';
       case UploadStatus.PAUSED:
         return 'yellow';
+      case UploadStatus.VALIDATING:
+        return 'purple';
       case UploadStatus.COMPLETED:
         return 'green';
       case UploadStatus.ERROR:
@@ -84,6 +100,8 @@ export default function UploadItem({ upload, uploadManager, onComplete, onError 
         return 'Uploading';
       case UploadStatus.PAUSED:
         return 'Paused';
+      case UploadStatus.VALIDATING:
+        return 'Validating';
       case UploadStatus.COMPLETED:
         return 'Completed';
       case UploadStatus.ERROR:
@@ -166,6 +184,25 @@ export default function UploadItem({ upload, uploadManager, onComplete, onError 
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
               </svg>
+            </button>
+          )}
+
+          {/* Validate button for completed uploads */}
+          {upload.status === UploadStatus.COMPLETED && (
+            <button
+              onClick={handleValidate}
+              disabled={isValidating}
+              className="p-2 text-purple-500 hover:text-purple-600 transition-colors disabled:opacity-50"
+              title="Validate file integrity"
+              aria-label="Validate file integrity"
+            >
+              {isValidating ? (
+                <div className="w-4 h-4 animate-spin rounded-full border-b-2 border-purple-500"></div>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              )}
             </button>
           )}
         </div>
@@ -254,6 +291,45 @@ export default function UploadItem({ upload, uploadManager, onComplete, onError 
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Validation Results */}
+      {upload.validationResult && (
+        <div className={`mt-3 p-3 rounded-lg border ${
+          upload.validationResult.isValid 
+            ? 'bg-green-50 border-green-200' 
+            : 'bg-red-50 border-red-200'
+        }`}>
+          <div className="flex items-center">
+            {upload.validationResult.isValid ? (
+              <>
+                <svg className="w-4 h-4 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm font-medium text-green-800">File integrity verified</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm font-medium text-red-800">File integrity check failed</span>
+              </>
+            )}
+          </div>
+          
+          {upload.validationResult.error && (
+            <p className="text-xs text-red-600 mt-1 ml-6">
+              {upload.validationResult.error}
+            </p>
+          )}
+          
+          {upload.validationResult.corruptedChunks && upload.validationResult.corruptedChunks.length > 0 && (
+            <p className="text-xs text-red-600 mt-1 ml-6">
+              Corrupted chunks: {upload.validationResult.corruptedChunks.join(', ')}
+            </p>
+          )}
         </div>
       )}
     </div>

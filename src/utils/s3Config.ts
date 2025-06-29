@@ -50,17 +50,8 @@ export function getS3ConfigFromEnv(): S3UploadConfig {
 
 export function logS3Config(config: S3UploadConfig): void {
   const validation = validateS3Config(config);
-  
-  console.log('🔧 S3 Upload Configuration:');
-  console.log(`   Bucket: ${config.bucketName}`);
-  console.log(`   Region: ${config.region}`);
-  console.log(`   Access Key: ${config.accessKeyId.substring(0, 8)}...`);
-  console.log(`   Chunk Size: ${(config.chunkSize / 1024 / 1024).toFixed(1)}MB`);
-  console.log(`   Max Concurrent: ${config.maxConcurrentUploads}`);
-  console.log(`   Retry Attempts: ${config.retryAttempts}`);
-  
+
   if (validation.isValid) {
-    console.log('✅ S3 configuration is valid');
   } else {
     console.warn('⚠️ S3 configuration issues:');
     validation.errors.forEach(error => console.warn(`   - ${error}`));

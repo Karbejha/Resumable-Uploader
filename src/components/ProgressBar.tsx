@@ -3,7 +3,7 @@ import React from 'react';
 interface ProgressBarProps {
   progress: number;
   colorClass?: string;
-  color?: 'blue' | 'green' | 'yellow' | 'red' | 'gray';
+  color?: 'blue' | 'green' | 'yellow' | 'red' | 'gray' | 'purple';
   size?: 'sm' | 'md' | 'lg';
   className?: string;
 }
@@ -66,7 +66,8 @@ export default function ProgressBar({
     green: 'bg-green-500',
     yellow: 'bg-yellow-500',
     red: 'bg-red-500',
-    gray: 'bg-gray-500'
+    gray: 'bg-gray-500',
+    purple: 'bg-purple-500'
   };
 
   const backgroundClasses = {
@@ -74,7 +75,8 @@ export default function ProgressBar({
     green: 'bg-green-100',
     yellow: 'bg-yellow-100',
     red: 'bg-red-100',
-    gray: 'bg-gray-100'
+    gray: 'bg-gray-100',
+    purple: 'bg-purple-100'
   };
 
   // Clamp progress between 0 and 100

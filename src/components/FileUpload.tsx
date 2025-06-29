@@ -282,7 +282,6 @@ export default function FileUpload({ onUploadStart, onUploadComplete, onUploadEr
           <div className="text-xs text-gray-400">
             <p>Supported files: All file types</p>
             <p>Maximum file size: 200GB</p>
-            <p>Minimum file size: 5MB</p>
           </div>
         </div>
       </div>

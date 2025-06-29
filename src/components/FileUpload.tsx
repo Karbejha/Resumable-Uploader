@@ -319,31 +319,51 @@ export default function FileUpload({ onUploadStart, onUploadComplete, onUploadEr
                   key={upload.id}
                   className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                 >
-                  <div>
+                  <div className="flex-1">
                     <p className="font-medium text-gray-900">{upload.fileName}</p>
                     <p className="text-sm text-gray-500">
                       {formatFileSize(upload.fileSize)} • {upload.status}
+                      {upload.status === 'completed' && ' • Ready for download'}
                     </p>
                   </div>
-                  <button
-                    onClick={() => uploadManager.removeUpload(upload.id)}
-                    className="text-gray-400 hover:text-gray-600"
-                    title="Remove upload from history"
-                    aria-label="Remove upload from history"
-                  >
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path
-                        fillRule="evenodd"
-                        d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </button>
+                  
+                  <div className="flex items-center space-x-2">
+                    {/* Download button for completed uploads */}
+                    {upload.status === 'completed' && upload.downloadUrl && (
+                      <a
+                        href={upload.downloadUrl}
+                        download={upload.fileName}
+                        className="inline-flex items-center px-3 py-1 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors mr-2"
+                        title="Download file"
+                      >
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Download
+                      </a>
+                    )}
+                    
+                    {/* Remove button */}
+                    <button
+                      onClick={() => uploadManager.removeUpload(upload.id)}
+                      className="text-gray-400 hover:text-gray-600"
+                      title="Remove upload from history"
+                      aria-label="Remove upload from history"
+                    >
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path
+                          fillRule="evenodd"
+                          d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
         </>
       )}
     </div>

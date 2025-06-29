@@ -115,6 +115,21 @@ export default function UploadItem({ upload, uploadManager, onComplete, onError 
         </div>
         
         <div className="flex items-center space-x-2 ml-4">
+          {/* Download button for completed uploads */}
+          {upload.status === UploadStatus.COMPLETED && upload.downloadUrl && (
+            <a
+              href={upload.downloadUrl}
+              download={upload.fileName}
+              className="p-2 text-green-500 hover:text-green-600 transition-colors"
+              title="Download file"
+              aria-label="Download file"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </a>
+          )}
+          
           {canPause && (
             <button
               onClick={handlePause}
@@ -203,10 +218,42 @@ export default function UploadItem({ upload, uploadManager, onComplete, onError 
         </div>
       )}
 
-      {/* Success Message */}
+      {/* Success Message with Download Link */}
       {upload.status === UploadStatus.COMPLETED && (
-        <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs text-green-700">
-          Upload completed successfully!
+        <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-green-700">
+              <div className="flex items-center">
+                <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                Upload completed successfully!
+              </div>
+              <div className="text-xs text-green-600 mt-1">
+                File size: {formatFileSize(upload.fileSize)}
+              </div>
+            </div>
+            
+            {upload.downloadUrl && (
+              <a
+                href={upload.downloadUrl}
+                download={upload.fileName}
+                className="inline-flex items-center px-3 py-1 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+                title="Download file"
+              >
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Download
+              </a>
+            )}
+            
+            {!upload.downloadUrl && (
+              <div className="text-xs text-gray-500">
+                Generating download link...
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

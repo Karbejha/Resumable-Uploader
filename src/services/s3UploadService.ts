@@ -1,4 +1,5 @@
-import { S3Client, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, ListPartsCommand } from '@aws-sdk/client-s3';
+import { S3Client, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, ListPartsCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { UploadChunk, FileUpload, S3UploadConfig, UploadError } from '@/types/upload';
 import { calculateChunkChecksum, sleep, calculateBackoffDelay } from '@/utils/fileUtils';
 
@@ -325,6 +326,26 @@ export class S3UploadService {
     } catch (error) {
       console.warn('Failed to list uploaded parts:', error);
       return [];
+    }
+  }
+
+  /**
+   * Generate a presigned download URL for the uploaded file
+   */
+  async generateDownloadUrl(fileUpload: FileUpload, expiresIn: number = 3600): Promise<string> {
+    try {
+      const command = new GetObjectCommand({
+        Bucket: this.config.bucketName,
+        Key: fileUpload.fileName,
+        ResponseContentDisposition: `attachment; filename="${fileUpload.fileName}"`,
+      });
+
+      const url = await getSignedUrl(this.s3Client, command, { expiresIn });
+      return url;
+    } catch (error) {
+      console.error('Failed to generate download URL:', error);
+      // Fallback to direct S3 URL if presigned URL fails
+      return `https://${this.config.bucketName}.s3.${this.config.region}.amazonaws.com/${encodeURIComponent(fileUpload.fileName)}`;
     }
   }
 

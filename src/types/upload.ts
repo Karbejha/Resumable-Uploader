@@ -15,6 +15,7 @@ export interface FileUpload {
   fileSize: number;
   uploadUrl?: string;
   uploadId?: string;
+  downloadUrl?: string;
   chunks: UploadChunk[];
   uploadedChunks: number;
   totalChunks: number;

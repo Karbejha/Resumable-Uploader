@@ -381,11 +381,20 @@ export class UploadManager {
       // Complete S3 multipart upload
       const location = await this.s3Service.completeUpload(upload);
       
+      // Generate download URL
+      let downloadUrl: string | undefined;
+      try {
+        downloadUrl = await this.s3Service.generateDownloadUrl(upload, 24 * 60 * 60); // 24 hours expiry
+      } catch (error) {
+        console.warn('Failed to generate download URL:', error);
+      }
+      
       // Update upload status
       this.uploadStore.getState().updateUpload(uploadId, {
         status: UploadStatus.COMPLETED,
         progress: 100,
         uploadUrl: location,
+        downloadUrl,
       });
 
       // TODO: Verify file integrity

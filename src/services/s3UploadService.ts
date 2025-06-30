@@ -288,15 +288,11 @@ export class S3UploadService {
   cancelFileUpload(uploadId: string): void {
     const keysToCancel = Array.from(this.activeUploads.keys())
       .filter(key => key.startsWith(uploadId));
-    
-    console.log(`Cancelling ${keysToCancel.length} active chunk uploads for ${uploadId}`);
-    
     keysToCancel.forEach(key => {
       const abortController = this.activeUploads.get(key);
       if (abortController && !abortController.signal.aborted) {
         try {
           abortController.abort();
-          console.log(`Cancelled chunk upload: ${key}`);
         } catch (error) {
           console.warn(`Failed to abort chunk upload ${key}:`, error);
         }

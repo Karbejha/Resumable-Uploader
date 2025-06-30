@@ -68,13 +68,6 @@ export default function FileUpload({ onUploadStart, onUploadComplete, onUploadEr
       upload.progress > 0 && upload.progress < 100
     );
 
-    console.log(`Found ${resumableUploads.length} resumable uploads:`, resumableUploads.map(u => ({
-      id: u.id,
-      fileName: u.fileName,
-      status: u.status,
-      progress: u.progress
-    })));
-
     if (resumableUploads.length > 0) {
       // Show a notification or prompt to the user
       const fileNames = resumableUploads.map(u => u.fileName).join(', ');
@@ -128,7 +121,6 @@ export default function FileUpload({ onUploadStart, onUploadComplete, onUploadEr
     try {
       if (existingUpload) {
         // Resume existing upload
-        console.log(`Resuming upload for ${file.name}`);
         await uploadManager.resumeUploadWithFile(existingUpload.id, file);
         onUploadStart?.(existingUpload.id);
       } else {

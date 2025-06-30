@@ -240,8 +240,6 @@ export class UploadManager {
 
     // Update status to paused
     this.uploadStore.getState().pauseUpload(uploadId);
-    
-    console.log(`Upload ${uploadId} paused successfully`);
   }
 
   /**
@@ -515,10 +513,8 @@ export class UploadManager {
    */
   private async calculateChecksumInBackground(uploadId: string, file: File): Promise<void> {
     try {
-      console.log(`Starting background checksum calculation for ${file.name}`);
       const checksum = await calculateFileChecksum(file, (progress) => {
         // Optionally update UI with checksum calculation progress
-        console.log(`Checksum calculation progress: ${progress.toFixed(1)}%`);
       });
       
       // Update the upload with the calculated checksum
@@ -526,7 +522,6 @@ export class UploadManager {
         checksum,
       });
       
-      console.log(`Background checksum calculation completed for ${file.name}`);
     } catch (error) {
       console.warn(`Failed to calculate checksum in background for ${file.name}:`, error);
       // Don't fail the upload if checksum calculation fails
